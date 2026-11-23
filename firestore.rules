@@ -1,0 +1,330 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(teacherId) {
+      return isSignedIn() && request.auth.uid == teacherId;
+    }
+
+    function isStr(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isScore(val) {
+      return (val is int || val is float) && val >= 0 && val <= 100;
+    }
+
+    // Entity Validation Blueprints
+    function isValidTeacherProfile(data) {
+      return data.keys().hasAll(['teacherId', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['teacherId', 'displayName', 'email', 'schoolName', 'createdAt', 'updatedAt'])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isStr(data.displayName, 1, 100)
+        && isStr(data.email, 3, 200)
+        && (!('schoolName' in data) || isStr(data.schoolName, 0, 100))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClassGroup(data) {
+      return data.keys().hasAll(['teacherId', 'name', 'semester', 'subject', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['teacherId', 'name', 'semester', 'subject', 'createdAt', 'updatedAt'])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isStr(data.name, 1, 60)
+        && isStr(data.semester, 1, 40)
+        && isStr(data.subject, 1, 60)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudent(data, classId) {
+      return data.keys().hasAll(['teacherId', 'classId', 'studentNumber', 'name', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['teacherId', 'classId', 'studentNumber', 'name', 'groupName', 'memo', 'createdAt', 'updatedAt'])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.classId)
+        && data.classId == classId
+        && isStr(data.studentNumber, 1, 20)
+        && isStr(data.name, 1, 50)
+        && (!('groupName' in data) || isStr(data.groupName, 0, 40))
+        && (!('memo' in data) || isStr(data.memo, 0, 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWeights(w) {
+      return w is map
+        && w.keys().hasAll(['rubric', 'artifact', 'peerSelf', 'attitude'])
+        && w.keys().hasOnly(['rubric', 'artifact', 'peerSelf', 'attitude'])
+        && isScore(w.rubric)
+        && isScore(w.artifact)
+        && isScore(w.peerSelf)
+        && isScore(w.attitude)
+        && (w.rubric + w.artifact + w.peerSelf + w.attitude) == 100;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll([
+          'teacherId', 'classId', 'title', 'domainCode', 'domainTitle',
+          'standards', 'rubricCriteria', 'checklistItems', 'weights',
+          'activityDate', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'classId', 'title', 'domainCode', 'domainTitle',
+          'standards', 'rubricCriteria', 'checklistItems', 'weights',
+          'activityDate', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.classId)
+        && isStr(data.title, 1, 120)
+        && data.domainCode in ['01', '02', '03', '04']
+        && isStr(data.domainTitle, 1, 60)
+        && data.standards is list
+        && data.standards.size() <= 10
+        && (data.standards.size() == 0 || isStr(data.standards[0], 1, 30))
+        && data.rubricCriteria is list
+        && data.rubricCriteria.size() >= 1
+        && data.rubricCriteria.size() <= 10
+        && data.rubricCriteria[0] is map
+        && data.checklistItems is list
+        && data.checklistItems.size() <= 15
+        && (data.checklistItems.size() == 0 || data.checklistItems[0] is map)
+        && isValidWeights(data.weights)
+        && isStr(data.activityDate, 4, 20)
+        && data.status in ['active', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidArtifactMap(a) {
+      return a is map
+        && a.keys().hasAll(['score', 'summary', 'feedback'])
+        && a.keys().hasOnly(['score', 'summary', 'feedback'])
+        && isScore(a.score)
+        && isStr(a.summary, 0, 500)
+        && isStr(a.feedback, 0, 1000);
+    }
+
+    function isValidPeerSelfMap(ps) {
+      return ps is map
+        && ps.keys().hasAll(['selfScore', 'selfNote', 'peerScore', 'peerNote'])
+        && ps.keys().hasOnly(['selfScore', 'selfNote', 'peerScore', 'peerNote'])
+        && isScore(ps.selfScore)
+        && isStr(ps.selfNote, 0, 600)
+        && isScore(ps.peerScore)
+        && isStr(ps.peerNote, 0, 600);
+    }
+
+    function isValidEvaluation(data) {
+      return data.keys().hasAll([
+          'teacherId', 'classId', 'activityId', 'studentId',
+          'rubricScores', 'checklistChecked', 'attitudeLogs', 'attitudeScore',
+          'artifact', 'peerSelf', 'observationMemo',
+          'aiFeedbackDraft', 'aiSeTeukDraft', 'totalScore',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'classId', 'activityId', 'studentId',
+          'rubricScores', 'checklistChecked', 'attitudeLogs', 'attitudeScore',
+          'artifact', 'peerSelf', 'observationMemo',
+          'aiFeedbackDraft', 'aiSeTeukDraft', 'totalScore',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.classId)
+        && isValidId(data.activityId)
+        && isValidId(data.studentId)
+        && data.rubricScores is map
+        && data.rubricScores.size() <= 15
+        && data.checklistChecked is list
+        && data.checklistChecked.size() <= 15
+        && (data.checklistChecked.size() == 0 || isStr(data.checklistChecked[0], 1, 64))
+        && data.attitudeLogs is list
+        && data.attitudeLogs.size() <= 50
+        && (data.attitudeLogs.size() == 0 || data.attitudeLogs[0] is map)
+        && isScore(data.attitudeScore)
+        && isValidArtifactMap(data.artifact)
+        && isValidPeerSelfMap(data.peerSelf)
+        && isStr(data.observationMemo, 0, 1500)
+        && isStr(data.aiFeedbackDraft, 0, 2000)
+        && isStr(data.aiSeTeukDraft, 0, 2000)
+        && isScore(data.totalScore)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Teacher Root Collection (PII protected: no list, owner-only get/write)
+    match /teachers/{teacherId} {
+      allow get: if isValidId(teacherId) && isOwner(teacherId) && (resource == null || existing().teacherId == request.auth.uid);
+      allow create: if isValidId(teacherId)
+        && isOwner(teacherId)
+        && isValidTeacherProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(teacherId)
+        && isOwner(teacherId)
+        && isValidTeacherProfile(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'schoolName', 'updatedAt']);
+      allow delete: if false;
+
+      // Class Groups Subcollection
+      match /classes/{classId} {
+        allow get: if isValidId(teacherId) && isValidId(classId) && isOwner(teacherId) && (resource == null || existing().teacherId == request.auth.uid);
+        allow list: if isOwner(teacherId) && existing().teacherId == request.auth.uid;
+        allow create: if isValidId(teacherId)
+          && isValidId(classId)
+          && isOwner(teacherId)
+          && isValidClassGroup(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/teachers/$(teacherId));
+        allow update: if isValidId(teacherId)
+          && isValidId(classId)
+          && isOwner(teacherId)
+          && isValidClassGroup(incoming())
+          && incoming().teacherId == existing().teacherId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'semester', 'subject', 'updatedAt']);
+        allow delete: if isValidId(teacherId)
+          && isValidId(classId)
+          && isOwner(teacherId)
+          && existing().teacherId == request.auth.uid;
+
+        // Students Subcollection
+        match /students/{studentId} {
+          allow get: if isValidId(teacherId) && isValidId(classId) && isValidId(studentId) && isOwner(teacherId) && (resource == null || existing().teacherId == request.auth.uid);
+          allow list: if isOwner(teacherId) && existing().teacherId == request.auth.uid;
+          allow create: if isValidId(teacherId)
+            && isValidId(classId)
+            && isValidId(studentId)
+            && isOwner(teacherId)
+            && isValidStudent(incoming(), classId)
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time
+            && get(/databases/$(database)/documents/teachers/$(teacherId)/classes/$(classId)).data.teacherId == request.auth.uid;
+          allow update: if isValidId(teacherId)
+            && isValidId(classId)
+            && isValidId(studentId)
+            && isOwner(teacherId)
+            && isValidStudent(incoming(), classId)
+            && incoming().teacherId == existing().teacherId
+            && incoming().classId == existing().classId
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['studentNumber', 'name', 'groupName', 'memo', 'updatedAt']);
+          allow delete: if isValidId(teacherId)
+            && isValidId(classId)
+            && isValidId(studentId)
+            && isOwner(teacherId)
+            && existing().teacherId == request.auth.uid;
+        }
+      }
+
+      // Activities Subcollection
+      match /activities/{activityId} {
+        allow get: if isValidId(teacherId) && isValidId(activityId) && isOwner(teacherId) && (resource == null || existing().teacherId == request.auth.uid);
+        allow list: if isOwner(teacherId) && existing().teacherId == request.auth.uid;
+        allow create: if isValidId(teacherId)
+          && isValidId(activityId)
+          && isOwner(teacherId)
+          && isValidActivity(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/teachers/$(teacherId)/classes/$(incoming().classId)).data.teacherId == request.auth.uid;
+        allow update: if isValidId(teacherId)
+          && isValidId(activityId)
+          && isOwner(teacherId)
+          && isValidActivity(incoming())
+          && incoming().teacherId == existing().teacherId
+          && incoming().classId == existing().classId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (existing().status == 'active' && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'domainCode', 'domainTitle', 'standards',
+              'rubricCriteria', 'checklistItems', 'weights',
+              'activityDate', 'status', 'updatedAt'
+            ])) ||
+            (existing().status == 'archived' && incoming().status == 'active' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          );
+        allow delete: if isValidId(teacherId)
+          && isValidId(activityId)
+          && isOwner(teacherId)
+          && existing().teacherId == request.auth.uid;
+      }
+
+      // Evaluations Subcollection
+      match /evaluations/{evalId} {
+        allow get: if isValidId(teacherId) && isValidId(evalId) && isOwner(teacherId) && (resource == null || existing().teacherId == request.auth.uid);
+        allow list: if isOwner(teacherId) && existing().teacherId == request.auth.uid;
+        allow create: if isValidId(teacherId)
+          && isValidId(evalId)
+          && isOwner(teacherId)
+          && isValidEvaluation(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/teachers/$(teacherId)/activities/$(incoming().activityId)).data.teacherId == request.auth.uid
+          && exists(/databases/$(database)/documents/teachers/$(teacherId)/classes/$(incoming().classId)/students/$(incoming().studentId));
+        allow update: if isValidId(teacherId)
+          && isValidId(evalId)
+          && isOwner(teacherId)
+          && isValidEvaluation(incoming())
+          && incoming().teacherId == existing().teacherId
+          && incoming().classId == existing().classId
+          && incoming().activityId == existing().activityId
+          && incoming().studentId == existing().studentId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'rubricScores', 'checklistChecked', 'attitudeLogs', 'attitudeScore',
+              'artifact', 'peerSelf', 'observationMemo', 'totalScore', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'aiFeedbackDraft', 'aiSeTeukDraft', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'rubricScores', 'checklistChecked', 'attitudeLogs', 'attitudeScore',
+              'artifact', 'peerSelf', 'observationMemo',
+              'aiFeedbackDraft', 'aiSeTeukDraft', 'totalScore', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(teacherId)
+          && isValidId(evalId)
+          && isOwner(teacherId)
+          && existing().teacherId == request.auth.uid;
+      }
+    }
+  }
+}

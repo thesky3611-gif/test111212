@@ -1,0 +1,336 @@
+{
+  "entities": {
+    "TeacherProfile": {
+      "title": "TeacherProfile",
+      "description": "Authenticated high school AI Basics teacher profile.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the teacher.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Teacher display name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Teacher verified email address.",
+          "maxLength": 200
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "High school name.",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["teacherId", "displayName", "email", "createdAt", "updatedAt"]
+    },
+    "ClassGroup": {
+      "title": "ClassGroup",
+      "description": "A classroom / section taught by the teacher for AI Basics.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Class name such as 2학년 3반.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "semester": {
+          "type": "string",
+          "description": "Academic year and semester.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject title.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["teacherId", "name", "semester", "subject", "createdAt", "updatedAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student enrolled in a teacher's class.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentNumber": {
+          "type": "string",
+          "description": "Student ID number such as 20301.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "name": {
+          "type": "string",
+          "description": "Student name.",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "groupName": {
+          "type": "string",
+          "description": "Assigned team or group label.",
+          "maxLength": 40
+        },
+        "memo": {
+          "type": "string",
+          "description": "General teacher note about the student.",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["teacherId", "classId", "studentNumber", "name", "createdAt", "updatedAt"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "An AI Basics lesson activity or performance assessment unit.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "domainCode": {
+          "type": "string",
+          "enum": ["01", "02", "03", "04"]
+        },
+        "domainTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "standards": {
+          "type": "array",
+          "description": "Bounded list of curriculum achievement standard codes."
+        },
+        "rubricCriteria": {
+          "type": "array",
+          "description": "Bounded list of rubric criteria objects."
+        },
+        "checklistItems": {
+          "type": "array",
+          "description": "Bounded list of observation checklist items."
+        },
+        "weights": {
+          "type": "object",
+          "description": "Weight breakdown for rubric, artifact, peerSelf, attitude."
+        },
+        "activityDate": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "classId",
+        "title",
+        "domainCode",
+        "domainTitle",
+        "standards",
+        "rubricCriteria",
+        "checklistItems",
+        "weights",
+        "activityDate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "description": "Integrated student evaluation record for a specific activity.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "activityId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "rubricScores": {
+          "type": "object",
+          "description": "Map of rubric criterion ID to selected level (high, mid, low)."
+        },
+        "checklistChecked": {
+          "type": "array",
+          "description": "Bounded list of completed checklist item IDs."
+        },
+        "attitudeLogs": {
+          "type": "array",
+          "description": "Bounded list of quick participation/attitude tags."
+        },
+        "attitudeScore": {
+          "type": "number",
+          "description": "Calculated attitude score (0 to 100)."
+        },
+        "artifact": {
+          "type": "object",
+          "description": "Practice artifact score, URL/summary, and feedback."
+        },
+        "peerSelf": {
+          "type": "object",
+          "description": "Self and peer evaluation scores and reflections."
+        },
+        "observationMemo": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "aiFeedbackDraft": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "aiSeTeukDraft": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "totalScore": {
+          "type": "number",
+          "description": "Weighted total score (0 to 100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "classId",
+        "activityId",
+        "studentId",
+        "rubricScores",
+        "checklistChecked",
+        "attitudeLogs",
+        "attitudeScore",
+        "artifact",
+        "peerSelf",
+        "observationMemo",
+        "aiFeedbackDraft",
+        "aiSeTeukDraft",
+        "totalScore",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherProfile" },
+      "description": "Teacher account profile isolated per authenticated teacher."
+    },
+    "/teachers/{teacherId}/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassGroup" },
+      "description": "Class groups managed by the teacher."
+    },
+    "/teachers/{teacherId}/classes/{classId}/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Students belonging to a specific class."
+    },
+    "/teachers/{teacherId}/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "AI Basics classroom activities and rubrics created by the teacher."
+    },
+    "/teachers/{teacherId}/evaluations/{evalId}": {
+      "schema": { "$ref": "#/entities/Evaluation" },
+      "description": "Student evaluation records per activity."
+    }
+  }
+}
